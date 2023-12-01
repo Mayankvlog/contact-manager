@@ -1,5 +1,6 @@
 import streamlit as st
 import sqlite3
+import hashlib  # For password hashing
 
 # Function to create the Contacts table
 def create_contacts_table():
@@ -12,6 +13,37 @@ def create_contacts_table():
     );''')
     conn.commit()
     conn.close()
+
+# Function to create the Users table
+def create_users_table():
+    conn = sqlite3.connect('contacts.db')
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS Users (
+        id INTEGER PRIMARY KEY,
+        username TEXT NOT NULL,
+        password TEXT NOT NULL
+    );''')
+    conn.commit()
+    conn.close()
+
+# Function to insert a new user
+def insert_user(username, password):
+    conn = sqlite3.connect('contacts.db')
+    c = conn.cursor()
+    hashed_password = hashlib.sha256(password.encode()).hexdigest()  # Hash the password
+    c.execute("INSERT INTO Users (username, password) VALUES (?, ?)", (username, hashed_password))
+    conn.commit()
+    conn.close()
+
+# Function to check login credentials
+def check_login(username, password):
+    conn = sqlite3.connect('contacts.db')
+    c = conn.cursor()
+    hashed_password = hashlib.sha256(password.encode()).hexdigest()  # Hash the password
+    c.execute("SELECT * FROM Users WHERE username=? AND password=?", (username, hashed_password))
+    user = c.fetchone()
+    conn.close()
+    return user
 
 # Function to insert a new contact
 def insert_contact(name, phone_number):
@@ -41,25 +73,33 @@ def delete_contact(contact_id):
 # Create Streamlit pages
 st.set_page_config(page_title="Contact Manager", layout="wide")
 
-st.title("Contact Number Manager")
+# Add logo
+logo_path = "Contact_manager.jpg"
+st.image(logo_path, width=150)  # Adjust the width as needed
 
-page = st.sidebar.radio("Navigation", ["Add Contact", "View Contacts"])
+# Create Users table
+create_users_table()
 
-if page == "Add Contact":
-    create_contacts_table()
+# Sign-up/Login page
+page = st.sidebar.radio("Navigation", ["Sign Up", "Login"])
 
-    st.header("Add a New Contact")
-    name = st.text_input("Name")
-    phone_number = st.text_input("Phone Number")
-    if st.button("Add Contact"):
-        insert_contact(name, phone_number)
-        st.success(f"Added {name} to contacts.")
+if page == "Sign Up":
+    st.header("Sign Up")
+    new_username = st.text_input("Username")
+    new_password = st.text_input("Password", type="password", key="signup")
+    if st.button("Sign Up"):
+        insert_user(new_username, new_password)
+        st.success(f"User {new_username} signed up successfully. Please log in.")
 
-elif page == "View Contacts":
-    st.header("Contacts List")
-    contacts = get_contacts()
-    for contact in contacts:
-        st.write(f"Name: {contact[1]}, Phone Number: {contact[2]}")
-        if st.button(f"Delete {contact[1]}"):
-            delete_contact(contact[0])
-
+elif page == "Login":
+    st.header("Login")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password", key="login")
+    if st.button("Login"):
+        user = check_login(username, password)
+        if user:
+            st.success(f"Logged in as {username}.")
+            create_contacts_table()  # Create Contacts table after login
+            # Continue with the rest of your application
+        else:
+            st.error("Invalid username or password.")
